@@ -1,0 +1,56 @@
+{
+  "name": "next-rsc-websocket",
+  "version": "0.1.0",
+  "description": "Seamlessly proxy Next.js RSC requests over WebSockets",
+  "author": "psycholessdev",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/psycholessdev/next-rsc-websocket.git"
+  },
+  "bugs": {
+    "url": "https://github.com/psycholessdev/next-rsc-websocket/issues"
+  },
+  "keywords": [
+    "nextjs",
+    "rsc",
+    "websocket",
+    "serviceworker"
+  ],
+  "main": "dist/client.js",
+  "types": "dist/client.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
+    },
+    "./plugin": {
+      "types": "./dist/plugin.d.ts",
+      "default": "./dist/plugin.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prebuild": "node scripts/build-worker.js",
+    "build": "tsc"
+  },
+  "peerDependencies": {
+    "next": ">=13.0.0",
+    "webpack": ">=5.0.0"
+  },
+  "dependencies": {
+    "prettier": "^3.8.1",
+    "webpack": ">=5.0.0",
+    "webpack-virtual-modules": "^0.6.2",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/webpack": "^5.28.5",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.0.0"
+  }
+}

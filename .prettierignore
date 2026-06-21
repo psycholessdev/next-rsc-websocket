@@ -1,0 +1,9 @@
+# Ignore generated files
+**/dist/**
+**/build/**
+**/node_modules/**
+**/.next/**
+**/coverage/**
+**/tmp/**
+**/*config*.js
+**/*config*.ts
