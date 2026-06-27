@@ -1,4 +1,5 @@
 import http from 'http'
+import crypto from 'crypto'
 
 let localAssetServer: http.Server | null = null
 let allocatedPort = 0
@@ -35,12 +36,25 @@ export function startInternalAssetServer(swCode: string): Promise<number> {
 
   registerCleanup()
 
+  const swCodeEtag = crypto.createHash('sha256').update(swCode).digest('hex')
+
   serverPromise = new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
+      // If client already has the same version
+      if (req.headers['if-none-match'] === swCodeEtag) {
+        res.writeHead(304, {
+          ETag: swCodeEtag,
+          'Cache-Control': 'public, max-age=1800',
+        })
+        res.end()
+        return
+      }
+
       res.writeHead(200, {
         'Content-Type': 'application/javascript',
         'Service-Worker-Allowed': '/',
-        'Cache-Control': 'public, max-age=0, must-revalidate',
+        'Cache-Control': 'public, max-age=1800',
+        ETag: swCodeEtag,
         'Access-Control-Allow-Origin': '*',
       })
 
