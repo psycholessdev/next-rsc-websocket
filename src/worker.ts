@@ -62,12 +62,14 @@ self.addEventListener('fetch', (event: FetchEvent) => {
 
 // Listen for replies back from the Main Thread WebSocket client
 self.addEventListener('message', event => {
-  const { type, id, status, headers, body } = event.data
+  const { type, id, clientId, status, headers, body } = event.data
   const source = event.source
 
-  if (type === 'GET_AVAILABILITY' && source instanceof Client && source.type === 'window') {
-    console.log(`[next-rsc-websocket] GET_AVAILABILITY: id: ${id} , status: ${status}`)
+  if (type === 'REGISTER_CLIENT_STATUS' && source instanceof Client && source.type === 'window') {
     swStatuses.set(source.id, status)
+    console.log(
+      `[next-rsc-websocket] WS Connection ${status ? 'established and proxing enabled' : 'failed, defaulting to fetch strategy'} (clientId: ${clientId}; sourceId: ${source.id})`,
+    )
   }
 
   if (type === 'RSC_RESPONSE_DATA' && pendingSwRequests.has(id)) {
@@ -77,7 +79,8 @@ self.addEventListener('message', event => {
         status: status,
         headers: new Headers({
           ...headers,
-          'Content-Type': 'text/x-component; charset=utf-8', // Standard RSC format content-type
+          // Standard RSC format content-type
+          'Content-Type': 'text/x-component; charset=utf-8',
         }),
       })
       resolve(response)

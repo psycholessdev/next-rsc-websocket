@@ -8,9 +8,11 @@ export class RscWebSocketClient {
   private swRegistration: ServiceWorkerRegistration | null = null
   private config: ClientConfig
   private pendingRequests = new Map<string, (data: any) => void>()
+  private clientId!: string
 
   constructor(config: ClientConfig) {
     this.config = config
+    this.clientId = crypto.randomUUID()
   }
 
   async init() {
@@ -22,22 +24,21 @@ export class RscWebSocketClient {
       this.config.wsUrl = `${protocol}//${window.location.host}/_next/rsc-ws`
     }
 
-    // 1. Register the injected service worker route
-    this.swRegistration = await navigator.serviceWorker.register('/next-rsc-worker.js', {
+    this.swRegistration = await navigator.serviceWorker.register('/next-rsc-websocket.js', {
       scope: '/',
     })
-
-    // 2. Setup WebSocket connection
     this.initWebSocket()
 
-    // 3. Listen to messages coming from the Service Worker interceptor
+    // Listen to messages coming from the Service Worker interceptor
     navigator.serviceWorker.addEventListener('message', async event => {
       const { type, id, url, headers, method, body } = event.data
 
-      if (type === 'GET_AVAILABILITY') {
+      if (type === 'REGISTER_CLIENT_STATUS') {
         this.swRegistration?.active?.postMessage({
-          type: 'GET_AVAILABILITY',
+          type: 'REGISTER_CLIENT_STATUS',
           status: this.ws.readyState === 1,
+          clientId: this.clientId,
+          id,
         })
       }
 
@@ -47,6 +48,7 @@ export class RscWebSocketClient {
           JSON.stringify({
             type: 'RSC_REQUEST',
             id,
+            clientId: this.clientId,
             url,
             method,
             headers,
@@ -74,12 +76,21 @@ export class RscWebSocketClient {
     this.ws.onmessage = event => {
       try {
         const message = JSON.parse(event.data)
+
         if (message.type === 'RSC_RESPONSE' && this.pendingRequests.has(message.id)) {
           const resolve = this.pendingRequests.get(message.id)
           if (resolve) {
             resolve(message)
             this.pendingRequests.delete(message.id)
           }
+        }
+
+        if (message.type === 'REGISTER_CLIENT_COMPLETED' && this.ws.readyState === this.ws.OPEN) {
+          this.swRegistration?.active?.postMessage({
+            type: 'REGISTER_CLIENT_STATUS',
+            status: true,
+            clientId: this.clientId,
+          })
         }
       } catch (err) {
         console.error('Error parsing WebSocket message:', err)
@@ -90,19 +101,16 @@ export class RscWebSocketClient {
       this.ws.send(
         JSON.stringify({
           type: 'REGISTER_CLIENT',
-          id: 'WINDOW_CLIENT_ID',
+          clientId: this.clientId,
         }),
       )
-      this.swRegistration?.active?.postMessage({
-        type: 'GET_AVAILABILITY',
-        status: true,
-      })
     }
 
     this.ws.onclose = () => {
       this.swRegistration?.active?.postMessage({
-        type: 'GET_AVAILABILITY',
+        type: 'REGISTER_CLIENT_STATUS',
         status: false,
+        clientId: this.clientId,
       })
 
       // Reconnection logic here
