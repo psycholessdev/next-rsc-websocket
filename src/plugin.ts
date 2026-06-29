@@ -49,24 +49,26 @@ export function withRscWebSocket(
     wsPortForClient > -1 ? wsPortForClient.toString() : wsPort.toString(),
   )
 
+  let assetServerPort = 63737
+  startInternalAssetServer({
+    '/next-rsc-websocket-worker.js': swCode,
+    [clientScriptPath]: clientCode,
+  }).then(port => (assetServerPort = port))
+
   return {
     ...nextConfig,
     async rewrites() {
       const existingRewrites = nextConfig?.rewrites ? await nextConfig.rewrites() : []
 
       // This safely redirects Next.js to our internal memory stream via standard proxying
-      const port = await startInternalAssetServer({
-        '/next-rsc-websocket-worker.js': swCode,
-        [clientScriptPath]: clientCode,
-      })
       const rewrites = [
         {
           source: '/next-rsc-websocket-worker.js',
-          destination: `http://127.0.0.1:${port}/next-rsc-websocket-worker.js`,
+          destination: `http://127.0.0.1:${assetServerPort}/next-rsc-websocket-worker.js`,
         },
         {
           source: clientScriptPath,
-          destination: `http://127.0.0.1:${port}${clientScriptPath}`,
+          destination: `http://127.0.0.1:${assetServerPort}${clientScriptPath}`,
         },
       ]
 

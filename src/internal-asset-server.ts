@@ -1,3 +1,4 @@
+// internal-asset-server.ts
 import http from 'http'
 import crypto from 'crypto'
 
@@ -32,7 +33,7 @@ function registerCleanup() {
 
 type AssetsMap = Record<string, string>
 
-export function startInternalAssetServer(assetsMap: AssetsMap): Promise<number> {
+export function startInternalAssetServer(assetsMap: AssetsMap, port = 63737): Promise<number> {
   if (allocatedPort) return Promise.resolve(allocatedPort)
   if (serverPromise) return serverPromise
   registerCleanup()
@@ -71,17 +72,24 @@ export function startInternalAssetServer(assetsMap: AssetsMap): Promise<number> 
     server.once('error', err => {
       localAssetServer = null
       serverPromise = null
-      reject(err)
+      if (port === 0) {
+        reject(err)
+        return
+      }
+
+      // retry with an available port
+      console.warn(`[next-rsc-websocket] Failed to start asset server on port ${port}`)
+      startInternalAssetServer(assetsMap, 0).then(resolve).catch(reject)
     })
 
-    server.listen(0, '127.0.0.1', () => {
+    server.listen(port, '127.0.0.1', () => {
       const address = server.address()
 
       if (!address || typeof address !== 'object') {
         server.close()
         localAssetServer = null
         serverPromise = null
-        reject(new Error('Failed to determine server port'))
+        reject(new Error('[next-rsc-websocket] Failed to determine server port'))
         return
       }
 
