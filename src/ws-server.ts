@@ -18,7 +18,24 @@ interface GlobalCustom {
 
 const g = globalThis as unknown as GlobalCustom
 
-export async function initInternalWebSocketServer(port = 0): Promise<number> {
+type WSRequestPayload =
+  | {
+      type: string
+      clientId?: string
+    }
+  | RscRequestPayload
+
+type WebSocketServerConfig = {
+  wsPort?: number
+  nextPort?: number
+  isDebug?: boolean
+}
+
+export async function initInternalWebSocketServer({
+  wsPort = 0,
+  nextPort = 3000,
+  isDebug = false,
+}: WebSocketServerConfig = {}): Promise<number> {
   // Survive HMR
   if (g[GLOBAL_WS_SERVER] && g[GLOBAL_WS_PORT]) {
     return g[GLOBAL_WS_PORT]
@@ -39,11 +56,11 @@ export async function initInternalWebSocketServer(port = 0): Promise<number> {
   g[GLOBAL_WS_ROUTER] = activeClients
 
   wss.on('connection', (ws: WebSocket) => {
-    let clientId: string | null = null
+    let clientId: string | null | undefined = null
 
     ws.on('message', raw => {
       try {
-        const payload = JSON.parse(raw.toString() || '{}')
+        const payload = JSON.parse(raw.toString() || '{}') as WSRequestPayload
 
         if (payload.type === 'REGISTER_CLIENT') {
           clientId = payload?.clientId
@@ -63,14 +80,17 @@ export async function initInternalWebSocketServer(port = 0): Promise<number> {
                 status: 200,
               }),
             )
-            // console.log('[RSC WS] [debug] Registered client:', clientId)
+            if (isDebug) {
+              console.log(`[RSC WS] [debug] Registered client: ${clientId}`)
+            }
           }
 
           return
         }
 
         if (payload.type === 'RSC_REQUEST') {
-          processRscRequest(payload)
+          if (isDebug) console.log(`[RSC WS] [debug] Proxying RSC_REQUEST: ${clientId}`)
+          processRscRequest(payload as RscRequestPayload, nextPort)
         }
       } catch (err) {
         console.error('[RSC WS] Message error:', err)
@@ -86,7 +106,7 @@ export async function initInternalWebSocketServer(port = 0): Promise<number> {
   })
 
   await new Promise<void>((resolve, reject) => {
-    server.listen({ host: '127.0.0.1', port }, resolve)
+    server.listen({ host: '127.0.0.1', port: wsPort }, resolve)
     server.once('error', reject)
   })
 
@@ -141,7 +161,7 @@ interface RscRequestPayload {
   clientId: string
 }
 
-export function processRscRequest(payload: RscRequestPayload): void {
+export function processRscRequest(payload: RscRequestPayload, nextPort = 3000): void {
   const activeChannels = getActiveRscChannels()
   const targetSocket = activeChannels.get(payload.clientId)
 
@@ -152,13 +172,32 @@ export function processRscRequest(payload: RscRequestPayload): void {
     return
   }
 
+  // TODO prevent DDOS or third party resourse requests
+  // TODO infer NextJS local address
   const targetUrl = new URL(payload.url)
+  targetUrl.protocol = 'http:'
+  targetUrl.hostname = '127.0.0.1'
+  targetUrl.port = nextPort.toString()
 
   // Clean headers to prevent NextJS from replying with gzip/br encoding
   // that would require manual inflation before passing to WS
   const cleanedHeaders = { ...payload.headers }
   delete cleanedHeaders['accept-encoding']
   delete cleanedHeaders['host']
+
+  if (!targetUrl.searchParams.has('_rsc') && cleanedHeaders['RSC'] !== '1') {
+    targetSocket.send(
+      JSON.stringify({
+        type: 'RSC_RESPONSE',
+        id: payload.id,
+        status: 400,
+        headers: { 'Content-Type': 'text/plain' },
+        body: 'Forbidden: non-RSC request',
+        reason: 'Non-RSC request',
+      }),
+    )
+    return
+  }
 
   const options: http.RequestOptions = {
     hostname: targetUrl.hostname,

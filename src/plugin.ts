@@ -2,16 +2,27 @@
 import type { NextConfig } from 'next'
 import { startInternalAssetServer } from './internal-asset-server'
 import { initInternalWebSocketServer } from './ws-server'
+import { getNextPort } from './get-next-port'
 
-export interface PluginOptions {
-  swPath?: string
+export interface PluginConfig {
+  wsPort?: number
+  nextPort?: number
+  swPath?: `/${string}`
+  isDebug?: boolean
 }
 
-export function withRscWebSocket(nextConfig: NextConfig = {}) {
+export function withRscWebSocket(
+  nextConfig: NextConfig = {},
+  {
+    wsPort = Number(process.env?.NEXT_PUBLIC_RSC_WS_PORT || process.env?.RSC_WS_PORT || 8081),
+    nextPort = Number(process.env?.NEXT_PUBLIC_PORT || process.env?.PORT || getNextPort(3000)),
+    swPath = '/next-rsc-websocket.js',
+    isDebug = Boolean(process.env?.NEXT_PUBLIC_RSC_WS_DEBUG || process.env?.RSC_WS_DEBUG || false),
+  }: PluginConfig = {},
+) {
   // Automatically bind the safe backend WebSocket interceptor
   if (typeof window === 'undefined') {
-    const wsPort = Number(process.env?.NEXT_PUBLIC_RSC_WS_PORT || process.env?.RSC_WS_PORT || 8081)
-    initInternalWebSocketServer(wsPort)
+    initInternalWebSocketServer({ wsPort, nextPort, isDebug })
   }
 
   // Bundled Service Worker (compiled during prebuild)
@@ -25,8 +36,8 @@ export function withRscWebSocket(nextConfig: NextConfig = {}) {
       // This safely redirects Next.js to our internal memory stream via standard proxying
       const port = await startInternalAssetServer(swCode)
       const swRewrite = {
-        source: '/next-rsc-websocket.js',
-        destination: `http://127.0.0.1:${port}/next-rsc-websocket.js`,
+        source: swPath,
+        destination: `http://127.0.0.1:${port}${swPath}`,
       }
 
       if (Array.isArray(existingRewrites)) {
