@@ -102,6 +102,84 @@ export interface PluginConfig {
 export default withRscWebSocket(nextConfig, { wsPort: 8081 })
 ```
 
+## Nginx Configuration
+
+Update following block inside your `server` configuration. This ensures that regular traffic passes to Next.js, while the paths matching `/_next/rsc-ws` are upgraded to a WebSocket connection on your designated `wsPort` (defaulting to `8081`).
+
+```conf
+# Map block to dynamically set Connection header based on Upgrade header
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  '' close;
+}
+
+server {
+  listen 443 ssl;
+  server_name yourdomain.com;
+
+  # 1. Route standard Next.js web application traffic
+  location / {
+    proxy_pass http://127.0.0.1:3000; # Your Next.js dockername and port
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded-for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  # 2. Route Dedicated next-rsc-websocket Flight Channel (Add this)
+  location /_next/rsc-ws {
+    proxy_pass http://127.0.0.1:8081; # Your next-rsc-websocket wsPort
+    proxy_http_version 1.1;
+
+    # Critical headers required for WebSocket handshakes
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded-for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # Optional: Adjust read/send timeouts for long-lived WS connections
+    proxy_read_timeout 86400s;
+    proxy_send_timeout 86400s;
+  }
+}
+```
+
+## Apache Configuration
+
+For Apache, make sure you have `mod_proxy`, `mod_proxy_http`, and `mod_proxy_wstunnel` enabled:
+
+```bash
+sudo a2enmod proxy proxy_http proxy_wstunnel
+```
+
+Then, configure your standard VirtualHost block. **Note**: Apache processes rules from top to bottom, so the WebSocket `ws://` rule must be placed above the general `http://` catch-all route.
+
+```conf
+<VirtualHost *:443>
+  ServerName yourdomain.com
+
+  SSLEngine on
+  SSLCertificateFile /path/to/cert.pem
+  SSLCertificateKeyFile /path/to/key.pem
+
+  ProxyRequests Off
+  ProxyPreserveHost On
+
+  # 1. Route Dedicated next-rsc-websocket Flight Channel (WSS Upgrade)
+  # This intercepts the handshake and proxies it cleanly over the ws tunnel
+  ProxyPass /_next/rsc-ws ws://127.0.0.1:8081/_next/rsc-ws
+  ProxyPassReverse /_next/rsc-ws ws://127.0.0.1:8081/_next/rsc-ws
+
+  # 2. Route standard Next.js web application traffic
+  ProxyPass / http://127.0.0.1:3000/ # Your Next.js dockername and port
+  ProxyPassReverse / http://127.0.0.1:3000/
+</VirtualHost>
+```
+
 ## Technical Details Under the Hood
 
 HMR Resilience: Built using robust globalThis cache layers inside the node runtime, meaning it gracefully survives hot module reloading during fast-paced development cycles without dropping listeners.
