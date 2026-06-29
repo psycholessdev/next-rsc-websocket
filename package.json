@@ -6,7 +6,7 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/psycholessdev/next-rsc-websocket.git"
+    "url": "git+https://github.com/psycholessdev/next-rsc-websocket.git"
   },
   "bugs": {
     "url": "https://github.com/psycholessdev/next-rsc-websocket/issues"
