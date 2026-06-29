@@ -28,7 +28,7 @@ export class RscWebSocketClient {
       this.config.wsUrl = `${protocol}//${window.location.host}/_next/rsc-ws`
     }
 
-    this.swRegistration = await navigator.serviceWorker.register('/next-rsc-websocket.js', {
+    this.swRegistration = await navigator.serviceWorker.register('/next-rsc-websocket-worker.js', {
       scope: '/',
     })
     this.initWebSocket()
@@ -124,6 +124,6 @@ export class RscWebSocketClient {
 }
 
 const client = new RscWebSocketClient({
-  wsUrl: `ws://${location.hostname}:${wsPort ?? 8081}/_next/rsc-ws`,
+  wsUrl: `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${location.hostname}:${wsPort ?? 8081}/_next/rsc-ws`,
 })
 client.init().catch(console.error)

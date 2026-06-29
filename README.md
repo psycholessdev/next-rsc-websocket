@@ -88,11 +88,16 @@ While next-rsc-websocket works out-of-the-box with completely optimized defaults
 
 ```typescript
 export interface PluginConfig {
-  wsPort?: number // Target WebSocket Port (Defaults to process.env.RSC_WS_PORT or 8081)
-  nextPort?: number // Your Next.js App Port (Defaults to process.env.PORT or 3000)
-  swPath?: string // Custom public path for the generated Service Worker code
-  clientScriptPath?: string // Custom public path for the client script helper
-  isDebug?: boolean // Toggle internal debug lifecycle logging (Defaults to false)
+  // Target WebSocket Port (Defaults to process.env.RSC_WS_PORT or 8081)
+  wsPort?: number
+  // WS port for the client (Allows you to configure Nginx/Apache to proxy WS to "wsPort" internally so client connects to the same port NextJS runs on)
+  wsPortForClient?: number
+  // Your Next.js App Port (Defaults to process.env.PORT or 3000)
+  nextPort?: number
+  // Custom public path for the client script helper
+  clientScriptPath?: `/${string}`
+  // Debug mode (Defaults to false)
+  isDebug?: boolean
 }
 ```
 
