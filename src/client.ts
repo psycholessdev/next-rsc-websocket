@@ -1,4 +1,8 @@
 // src/client.ts
+declare global {
+  var wsPort: number | undefined
+}
+
 export interface ClientConfig {
   wsUrl: string
 }
@@ -118,3 +122,8 @@ export class RscWebSocketClient {
     }
   }
 }
+
+const client = new RscWebSocketClient({
+  wsUrl: `ws://${location.hostname}:${wsPort ?? 8081}/_next/rsc-ws`,
+})
+client.init().catch(console.error)

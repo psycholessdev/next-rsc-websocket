@@ -30,35 +30,42 @@ function registerCleanup() {
   })
 }
 
-export function startInternalAssetServer(swCode: string): Promise<number> {
+type AssetsMap = Record<string, string>
+
+export function startInternalAssetServer(assetsMap: AssetsMap): Promise<number> {
   if (allocatedPort) return Promise.resolve(allocatedPort)
   if (serverPromise) return serverPromise
-
   registerCleanup()
 
-  const swCodeEtag = crypto.createHash('sha256').update(swCode).digest('hex')
+  // cache Etag revalidation
+  const etags = new Map<string, string>()
+  Object.entries(assetsMap).forEach(([path, content]) => {
+    etags.set(path, `"${crypto.createHash('sha256').update(content).digest('hex')}"`)
+  })
 
   serverPromise = new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
+      if (!req.url || !assetsMap[req.url] || !etags.has(req.url)) {
+        return res.writeHead(404).end()
+      }
+
       // If client already has the same version
-      if (req.headers['if-none-match'] === swCodeEtag) {
+      if (req.headers['if-none-match'] === etags.get(req.url)) {
         res.writeHead(304, {
-          ETag: swCodeEtag,
+          ETag: etags.get(req.url),
           'Cache-Control': 'public, max-age=1800',
         })
-        res.end()
-        return
+        return res.end()
       }
 
       res.writeHead(200, {
         'Content-Type': 'application/javascript',
         'Service-Worker-Allowed': '/',
         'Cache-Control': 'public, max-age=1800',
-        ETag: swCodeEtag,
+        ETag: etags.get(req.url),
         'Access-Control-Allow-Origin': '*',
       })
-
-      res.end(swCode)
+      res.end(assetsMap[req.url])
     })
 
     server.once('error', err => {

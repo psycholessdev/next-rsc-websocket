@@ -33,7 +33,7 @@
     "dist"
   ],
   "scripts": {
-    "prebuild": "node scripts/build-worker.js",
+    "prebuild": "node scripts/build-client.js",
     "build": "tsc"
   },
   "peerDependencies": {
