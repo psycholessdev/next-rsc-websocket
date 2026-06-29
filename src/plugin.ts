@@ -3,6 +3,7 @@ import type { NextConfig } from 'next'
 import { startInternalAssetServer } from './internal-asset-server'
 import { initInternalWebSocketServer } from './ws-server'
 import { getNextPort } from './get-next-port'
+import { getNextEnvironment } from './get-env-type'
 
 export interface PluginConfig {
   // Target WebSocket Port (Defaults to process.env.RSC_WS_PORT or 8081)
@@ -21,15 +22,23 @@ export function withRscWebSocket(
   nextConfig: NextConfig = {},
   {
     wsPort = Number(process.env?.NEXT_PUBLIC_RSC_WS_PORT || process.env?.RSC_WS_PORT || 8081),
-    wsPortForClient = -1,
+    wsPortForClient = Number(
+      process.env?.NEXT_PUBLIC_RSC_WS_CLIENT_PORT || process.env?.RSC_WS_CLIENT_PORT || -1,
+    ),
     nextPort = Number(process.env?.NEXT_PUBLIC_PORT || process.env?.PORT || getNextPort(3000)),
     clientScriptPath = '/init-rsc-websocket.js',
     isDebug = Boolean(process.env?.NEXT_PUBLIC_RSC_WS_DEBUG || process.env?.RSC_WS_DEBUG || false),
   }: PluginConfig = {},
 ) {
+  const envType = getNextEnvironment()
+
   // Automatically bind the safe backend WebSocket interceptor
   if (typeof window === 'undefined') {
-    initInternalWebSocketServer({ wsPort, nextPort, isDebug })
+    if (envType !== 'build' && envType !== 'dev') {
+      initInternalWebSocketServer({ wsPort, nextPort, isDebug })
+    } else {
+      console.log('[RSC WS] Skipped WebSocket server start for production/build mode.')
+    }
   }
 
   // Bundled Service Worker (compiled during prebuild)

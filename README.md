@@ -1,4 +1,4 @@
-# Next RSC WebSocket [UNDER DEVELOPMENT]
+# Next RSC WebSocket [UNDER DEVELOPMENT, UNSTABLE]
 
 **🚀 Turbocharge your Next.js App Router applications by routing React Server Component (RSC) payloads over persistent WebSockets.**
 
@@ -31,8 +31,6 @@ Every time your users navigate, click a link, or trigger a Server Action, Next.j
 **Service Worker Interception**: A background service worker transparently catches any client-side request pointing to `?_rsc=...` or matching the `RSC: 1` header.
 
 **WebSocket Pipeline**: The intercepted payload is repackaged and fired down a persistent WebSocket channel.
-
-**Local Dev Server Bridge**: The library automatically handles an internal HTTP server and maps incoming messages straight back to your Next.js instance locally without complex configurations.
 
 ## Installation
 
@@ -82,6 +80,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
+3. Build and Run your Application (it is disabled for development server)
+
 ## Configuration Options
 
 While next-rsc-websocket works out-of-the-box with completely optimized defaults, you can pass custom options to withRscWebSocket to fit your environmental needs:
@@ -104,7 +104,15 @@ export interface PluginConfig {
 ## Example Custom Configuration
 
 ```javascript
-export default withRscWebSocket(nextConfig, { wsPort: 8081 })
+export default withRscWebSocket(nextConfig, { wsPort: 8081, wsPortForClient: 443 })
+```
+
+Or you can omit manual config and use more flexible approach:
+
+```env
+# .env
+RSC_WS_PORT=8081
+RSC_WS_CLIENT_PORT=443
 ```
 
 ## Nginx Configuration

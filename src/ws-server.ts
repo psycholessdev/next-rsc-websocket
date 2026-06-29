@@ -108,18 +108,40 @@ export async function initInternalWebSocketServer({
   await new Promise<void>((resolve, reject) => {
     server.listen({ host: '127.0.0.1', port: wsPort }, resolve)
     server.once('error', reject)
+    server.on('close', () => {
+      delete g[GLOBAL_WS_SERVER]
+      delete g[GLOBAL_WS_HTTP]
+      delete g[GLOBAL_WS_ROUTER]
+      delete g[GLOBAL_WS_PORT]
+      delete g[GLOBAL_WS_CLEANUP_REGISTERED]
+    })
   })
 
   // cleanup
   let shuttingDown = false
   let shutdownPromise: Promise<void> | null = null
-  const shutdown = async () => {
+  const shutdown = () => {
     if (shuttingDown) return shutdownPromise
     shuttingDown = true
 
     shutdownPromise = new Promise<void>(resolve => {
       try {
-        wss.close(() => server.close(() => resolve()))
+        for (const ws of wss.clients) {
+          try {
+            ws.terminate()
+          } catch {}
+        }
+
+        wss.close()
+        server.close(() => {
+          delete g[GLOBAL_WS_SERVER]
+          delete g[GLOBAL_WS_HTTP]
+          delete g[GLOBAL_WS_ROUTER]
+          delete g[GLOBAL_WS_PORT]
+          delete g[GLOBAL_WS_CLEANUP_REGISTERED]
+          console.log('[RSC WS] graceful shut down finished')
+          resolve()
+        })
       } catch (err) {
         console.error('[RSC WS] shutdown error:', err)
         resolve()
@@ -131,13 +153,22 @@ export async function initInternalWebSocketServer({
   if (!g[GLOBAL_WS_CLEANUP_REGISTERED]) {
     g[GLOBAL_WS_CLEANUP_REGISTERED] = true
 
-    const handler = async () => {
+    process.once('SIGINT', async () => {
       await shutdown()
       process.exit(0)
-    }
-
-    process.once('SIGINT', handler)
-    process.once('SIGTERM', handler)
+    })
+    process.once('SIGTERM', async () => {
+      await shutdown()
+      process.exit(0)
+    })
+    process.once('uncaughtException', async err => {
+      console.error(err)
+      await shutdown()
+      process.exit(1)
+    })
+    // unreliable (does not wait for the promise)
+    // process.once('beforeExit', shutdown)
+    // process.once('exit', shutdown)
   }
 
   const address = server.address()
